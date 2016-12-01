@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, MagicHash, Rank2Types #-}
+{-# LANGUAGE CPP, MagicHash, Rank2Types, ForeignFunctionInterface, UnliftedFFITypes #-}
 
 -- |
 -- Module      : Data.Double.Conversion.Text
@@ -33,7 +33,12 @@ import Control.Monad.ST (runST)
 import Data.Double.Conversion.FFI
 import Data.Text.Internal (Text(Text))
 import Foreign.C.Types (CDouble, CInt)
-import GHC.Prim (MutableByteArray#)
+#ifndef __GHCJS__
+import GHC.Prim (MutableByteArray#, ByteArray#)
+#else
+import GHC.Prim (MutableByteArray#, Int#, ByteArray#)
+import Data.JSString
+#endif
 import qualified Data.Text.Array as A
 
 -- | Compute a representation in exponential format with the requested
@@ -81,4 +86,12 @@ convert func len act val = runST go
         fail $ "Data.Double.Conversion.Text." ++ func ++
                ": conversion failed (invalid precision requested)"
       frozen <- A.unsafeFreeze buf
+#ifndef __GHCJS__
       return $ Text frozen 0 (fromIntegral size)
+#else
+      return $ Text $ js_toString (A.aBA frozen) 0# (fromIntegral size)
+
+foreign import javascript unsafe
+  "h$textToString"
+  js_toString :: ByteArray# -> Int# -> Int -> JSString
+#endif
